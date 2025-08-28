@@ -1,0 +1,42 @@
+# Go build artifacts
+/bin/
+/build/
+/*.exe
+/*.exe~
+/*.dll
+/*.so
+/*.dylib
+
+# Go modules
+/go.sum
+/go.mod
+
+# IDE/editor files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Test coverage
+*.out
+coverage.out
+
+# Temporary files
+*.tmp
+*.swp
+
+# Generated files
+*.zip
+*.tar.gz
+
+# Docker (if you ever use docker build artifacts)
+docker-compose.override.yml
