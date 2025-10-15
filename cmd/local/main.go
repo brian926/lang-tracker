@@ -21,7 +21,7 @@ func main() {
 	}
 
 	db.Init()
-	//db.Client = db.NewFakeDynamo()
+	db.Client = db.NewDynamo()
 
 	http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

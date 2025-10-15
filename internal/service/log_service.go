@@ -26,7 +26,7 @@ func LogActivity(ctx context.Context, req models.Request) error {
 		return err
 	}
 	_, err = db.Client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String("LanguageLogs"),
+		TableName: aws.String("LangLogs"),
 		Item:      av,
 	})
 	return err

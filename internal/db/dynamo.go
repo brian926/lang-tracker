@@ -3,42 +3,67 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
+	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-var Client DynamoAPI
+type Dynamo struct {
+	Logs []map[string]types.AttributeValue
+	mu   sync.Mutex
+}
 
-func Init() {
-	ctx := context.TODO()
+func NewDynamo() *Dynamo {
+	return &Dynamo{
+		Logs: make([]map[string]types.AttributeValue, 0),
+	}
+}
 
-	// Check if we're running locally
-	if os.Getenv("DYNAMO_LOCAL") == "1" {
-		fmt.Println("🚀 Using DynamoDB Local")
-		cfg, err := config.LoadDefaultConfig(context.TODO(),
-			config.WithRegion("localhost"),
-			config.WithBaseEndpoint("http://localhost:8000/"),
-			config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
-				Value: aws.Credentials{
-					AccessKeyID: "", SecretAccessKey: "", Source: "",
-				},
-			}))
+func (f *Dynamo) PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-		if err != nil {
-			panic(err)
+	// Store the item
+	f.Logs = append(f.Logs, in.Item)
+
+	// Log the stored item
+	fmt.Println("📥 PutItem called, stored item:")
+	for k, v := range in.Item {
+		switch val := v.(type) {
+		case *types.AttributeValueMemberS:
+			fmt.Printf("  %s: %s\n", k, val.Value)
+		case *types.AttributeValueMemberN:
+			fmt.Printf("  %s: %s\n", k, val.Value)
+		default:
+			fmt.Printf("  %s: %+v\n", k, v)
 		}
-		Client = dynamodb.NewFromConfig(cfg)
-		return
 	}
 
-	// Production AWS
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		panic(fmt.Sprintf("unable to load SDK config, %v", err))
+	return &dynamodb.PutItemOutput{}, nil
+}
+
+func (f *Dynamo) Query(ctx context.Context, in *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Log query call
+	fmt.Println("📤 Query called with key condition:", *in.KeyConditionExpression)
+	for k, v := range in.ExpressionAttributeValues {
+		switch val := v.(type) {
+		case *types.AttributeValueMemberS:
+			fmt.Printf("  %s = %s\n", k, val.Value)
+		case *types.AttributeValueMemberN:
+			fmt.Printf("  %s = %s\n", k, val.Value)
+		default:
+			fmt.Printf("  %s = %+v\n", k, v)
+		}
 	}
-	Client = dynamodb.NewFromConfig(cfg)
+
+	// Return all items (simple implementation for fake)
+	fmt.Printf("  Returning %d items\n", len(f.Logs))
+
+	return &dynamodb.QueryOutput{
+		Items: f.Logs,
+	}, nil
 }
