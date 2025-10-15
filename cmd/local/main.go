@@ -20,7 +20,8 @@ func main() {
 		fmt.Println("No .env file found")
 	}
 
-	db.Client = db.NewFakeDynamo()
+	db.Init()
+	//db.Client = db.NewFakeDynamo()
 
 	http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

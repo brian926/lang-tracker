@@ -14,6 +14,11 @@ type FakeDynamo struct {
 	mu   sync.Mutex
 }
 
+type TableBasics struct {
+	DynamoDbClient *dynamodb.Client
+	TableName      string
+}
+
 func NewFakeDynamo() *FakeDynamo {
 	return &FakeDynamo{
 		Logs: make([]map[string]types.AttributeValue, 0),

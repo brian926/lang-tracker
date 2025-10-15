@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
@@ -18,17 +19,15 @@ func Init() {
 	// Check if we're running locally
 	if os.Getenv("DYNAMO_LOCAL") == "1" {
 		fmt.Println("🚀 Using DynamoDB Local")
-		cfg, err := config.LoadDefaultConfig(ctx,
-			config.WithRegion(os.Getenv("AWS_REGION")),
-			config.WithEndpointResolverWithOptions(
-				aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-					if service == dynamodb.ServiceID {
-						return aws.Endpoint{URL: "http://localhost:8000"}, nil
-					}
-					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-				}),
-			),
-		)
+		cfg, err := config.LoadDefaultConfig(context.TODO(),
+			config.WithRegion("localhost"),
+			config.WithBaseEndpoint("http://localhost:8000/"),
+			config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
+				Value: aws.Credentials{
+					AccessKeyID: "", SecretAccessKey: "", Source: "",
+				},
+			}))
+
 		if err != nil {
 			panic(err)
 		}
