@@ -20,6 +20,14 @@ func NewDynamo() *Dynamo {
 	}
 }
 
+func CreateItem(ctx context.Context, tableName string, item map[string]types.AttributeValue) error {
+	_, err := Client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &tableName,
+		Item:      item,
+	})
+	return err
+}
+
 func (f *Dynamo) PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

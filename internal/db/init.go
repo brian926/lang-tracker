@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
-var Client DynamoAPI
+var Client *dynamodb.Client
 
 func Init() {
 	ctx := context.TODO()

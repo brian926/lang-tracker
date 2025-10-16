@@ -5,9 +5,7 @@ import (
 	"lang-tracker/internal/db"
 	"lang-tracker/internal/models"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/google/uuid"
 )
 
@@ -25,9 +23,12 @@ func LogActivity(ctx context.Context, req models.Request) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.Client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String("LangLogs"),
-		Item:      av,
-	})
+	// _, err = db.Client.PutItem(ctx, &dynamodb.PutItemInput{
+	// 	TableName: aws.String("LangLogs"),
+	// 	Item:      av,
+	// })
+	// return err
+
+	err = db.CreateItem(ctx, "LangLogs", av)
 	return err
 }
