@@ -21,23 +21,9 @@ func NewDynamo() *Dynamo {
 }
 
 func CreateItem(ctx context.Context, tableName string, item map[string]types.AttributeValue) error {
-	_, err := Client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &tableName,
-		Item:      item,
-	})
-	return err
-}
-
-func (f *Dynamo) PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	// Store the item
-	f.Logs = append(f.Logs, in.Item)
-
 	// Log the stored item
 	fmt.Println("📥 PutItem called, stored item:")
-	for k, v := range in.Item {
+	for k, v := range item {
 		switch val := v.(type) {
 		case *types.AttributeValueMemberS:
 			fmt.Printf("  %s: %s\n", k, val.Value)
@@ -48,7 +34,11 @@ func (f *Dynamo) PutItem(ctx context.Context, in *dynamodb.PutItemInput, optFns 
 		}
 	}
 
-	return &dynamodb.PutItemOutput{}, nil
+	_, err := Client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &tableName,
+		Item:      item,
+	})
+	return err
 }
 
 func (f *Dynamo) Query(ctx context.Context, in *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {

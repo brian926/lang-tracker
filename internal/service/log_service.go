@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const TableName = "lang-tracker"
+
 func LogActivity(ctx context.Context, req models.Request) error {
 	logID := uuid.New().String()
 	item := models.LogItem{
@@ -29,6 +31,6 @@ func LogActivity(ctx context.Context, req models.Request) error {
 	// })
 	// return err
 
-	err = db.CreateItem(ctx, "LangLogs", av)
+	err = db.CreateItem(ctx, TableName, av)
 	return err
 }
