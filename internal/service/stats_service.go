@@ -6,20 +6,11 @@ import (
 	"lang-tracker/internal/models"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func GetStats(ctx context.Context, userID, language string) (*models.StatsResponse, error) {
-	out, err := db.Client.Query(ctx, &dynamodb.QueryInput{
-		TableName:              aws.String("LanguageLogs"),
-		KeyConditionExpression: aws.String("userId = :uid"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":uid": &types.AttributeValueMemberS{Value: userID},
-		},
-	})
+	out, err := db.QueryByUserId(ctx, userID, TableName)
 	if err != nil {
 		return nil, err
 	}

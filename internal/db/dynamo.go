@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -41,27 +42,21 @@ func CreateItem(ctx context.Context, tableName string, item map[string]types.Att
 	return err
 }
 
-func (f *Dynamo) Query(ctx context.Context, in *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func QueryByUserId(ctx context.Context, userID, tableName string) (*dynamodb.QueryOutput, error) {
 
-	// Log query call
-	fmt.Println("📤 Query called with key condition:", *in.KeyConditionExpression)
-	for k, v := range in.ExpressionAttributeValues {
-		switch val := v.(type) {
-		case *types.AttributeValueMemberS:
-			fmt.Printf("  %s = %s\n", k, val.Value)
-		case *types.AttributeValueMemberN:
-			fmt.Printf("  %s = %s\n", k, val.Value)
-		default:
-			fmt.Printf("  %s = %+v\n", k, v)
-		}
+	fmt.Println("📤 Querying DynamoDB for userId:", userID)
+
+	out, err := Client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              &tableName,
+		KeyConditionExpression: aws.String("userId = :uid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":uid": &types.AttributeValueMemberS{Value: userID},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	// Return all items (simple implementation for fake)
-	fmt.Printf("  Returning %d items\n", len(f.Logs))
-
-	return &dynamodb.QueryOutput{
-		Items: f.Logs,
-	}, nil
+	fmt.Printf("  ✅ Retrieved %d items\n", len(out.Items))
+	return out, nil
 }
