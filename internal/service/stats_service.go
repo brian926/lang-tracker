@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"lang-tracker/internal/db"
 	"lang-tracker/internal/models"
 	"time"
@@ -21,9 +22,15 @@ func GetStats(ctx context.Context, userID, language string) (*models.StatsRespon
 		return nil, err
 	}
 
+	// Define possible date formats
+	formats := []string{"2006-01-02", "01/02/2006"}
+
+	var dt time.Time
+
+	today := time.Now()
 	now := time.Now()
-	today := now.Format("2006-01-02")
 	year, week := now.ISOWeek()
+	y1, m1, d1 := today.Date()
 
 	total := 0
 	todayMins := 0
@@ -31,22 +38,44 @@ func GetStats(ctx context.Context, userID, language string) (*models.StatsRespon
 	monthMins := 0
 	activityTotals := make(map[string]int)
 
+	fmt.Println(logs)
+
 	for _, log := range logs {
+		// Try parsing the date with each format
+		for _, format := range formats {
+			dt, err = time.Parse(format, log.Date)
+			if err == nil {
+				fmt.Println("Parsed date:", dt)
+				break
+			}
+		}
+		if err != nil {
+			fmt.Printf("Error parsing date %s: %v\n", log.Date, err)
+			continue
+		}
+
+		y2, m2, d2 := dt.Date()
+
 		if log.Language != language {
 			continue
 		}
+
 		total += log.Minutes
 		activityTotals[log.ActivityType] += log.Minutes
 
-		dt, _ := time.Parse("2006-01-02", log.Date)
-		if log.Date == today {
+		// Check for today
+		if d1 == d2 {
 			todayMins += log.Minutes
 		}
+
+		// Check for this week
 		y, w := dt.ISOWeek()
 		if y == year && w == week {
 			weekMins += log.Minutes
 		}
-		if dt.Year() == now.Year() && dt.Month() == now.Month() {
+
+		// Check for this month
+		if y2 == y1 && m2 == m1 {
 			monthMins += log.Minutes
 		}
 	}
