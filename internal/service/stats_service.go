@@ -5,84 +5,99 @@ import (
 	"fmt"
 	"lang-tracker/internal/db"
 	"lang-tracker/internal/models"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 )
 
-func GetStats(ctx context.Context, userID, language string) (*models.StatsResponse, error) {
-	out, err := db.QueryByUserId(ctx, userID, TableName)
+// StatsService handles computing usage statistics.
+type StatsService struct {
+	DB        db.DynamoDBClient
+	TableName string
+}
+
+// GetStats returns aggregated stats for a user+language combination.
+func (s *StatsService) GetStats(ctx context.Context, userID, language string) (*models.StatsResponse, error) {
+	items, err := db.QueryByUserId(ctx, s.DB, userID, s.TableName)
 	if err != nil {
 		return nil, err
 	}
 
 	var logs []models.LogItem
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &logs)
-	if err != nil {
-		return nil, err
+	if err := attributevalue.UnmarshalListOfMaps(items, &logs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal log items: %w", err)
 	}
 
-	// Define possible date formats
+	slog.DebugContext(ctx, "fetched log items", "count", len(logs), "userId", userID, "language", language)
+
+	// Accepted date formats
 	formats := []string{"2006-01-02", "01/02/2006"}
 
-	var dt time.Time
-
-	today := time.Now()
 	now := time.Now()
-	year, week := now.ISOWeek()
-	y1, m1, d1 := today.Date()
+	nowYear, nowMonth, nowDay := now.Date()
+	nowYear2, nowWeek := now.ISOWeek()
 
-	total := 0
-	todayMins := 0
-	weekMins := 0
-	monthMins := 0
-	activityTotals := make(map[string]int)
+	var (
+		total     int
+		todayMins int
+		weekMins  int
+		monthMins int
+		actTotals = make(map[string]int)
+	)
 
-	fmt.Println(logs)
+	for _, entry := range logs {
+		// Filter by language first before any computation
+		if entry.Language != language {
+			continue
+		}
 
-	for _, log := range logs {
-		// Try parsing the date with each format
+		// Parse date — try each format, fresh error per iteration
+		var (
+			dt       time.Time
+			parseErr error
+		)
 		for _, format := range formats {
-			dt, err = time.Parse(format, log.Date)
-			if err == nil {
-				fmt.Println("Parsed date:", dt)
+			dt, parseErr = time.Parse(format, entry.Date)
+			if parseErr == nil {
 				break
 			}
 		}
-		if err != nil {
-			fmt.Printf("Error parsing date %s: %v\n", log.Date, err)
+		if parseErr != nil {
+			slog.WarnContext(ctx, "skipping entry with unparseable date",
+				"logId", entry.LogID, "date", entry.Date)
 			continue
 		}
 
-		y2, m2, d2 := dt.Date()
+		entryYear, entryMonth, entryDay := dt.Date()
+		entryYear2, entryWeek := dt.ISOWeek()
 
-		if log.Language != language {
-			continue
+		total += entry.Minutes
+		actTotals[entry.ActivityType] += entry.Minutes
+
+		// Today: must match year, month, and day
+		if entryYear == nowYear && entryMonth == nowMonth && entryDay == nowDay {
+			todayMins += entry.Minutes
 		}
 
-		total += log.Minutes
-		activityTotals[log.ActivityType] += log.Minutes
-
-		// Check for today
-		if d1 == d2 {
-			todayMins += log.Minutes
+		// This ISO week
+		if entryYear2 == nowYear2 && entryWeek == nowWeek {
+			weekMins += entry.Minutes
 		}
 
-		// Check for this week
-		y, w := dt.ISOWeek()
-		if y == year && w == week {
-			weekMins += log.Minutes
-		}
-
-		// Check for this month
-		if y2 == y1 && m2 == m1 {
-			monthMins += log.Minutes
+		// This calendar month
+		if entryYear == nowYear && entryMonth == nowMonth {
+			monthMins += entry.Minutes
 		}
 	}
 
+	// Percentages: each activity's share of total logged time for this language.
+	// Returns 0 for each activity if no time has been logged yet.
 	percentages := make(map[string]float64)
-	for act, mins := range activityTotals {
-		percentages[act] = (float64(mins) / 60000.0) * 100 // out of 1000 hrs = 60000 mins
+	if total > 0 {
+		for act, mins := range actTotals {
+			percentages[act] = (float64(mins) / float64(total)) * 100
+		}
 	}
 
 	return &models.StatsResponse{

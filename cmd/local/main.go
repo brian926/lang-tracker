@@ -1,57 +1,79 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"lang-tracker/internal/db"
 	"lang-tracker/internal/handler"
 	"lang-tracker/internal/models"
+	"lang-tracker/internal/service"
+	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
 )
 
-// Simple HTTP adapter to mimic API Gateway locally
+func tableName() string {
+	if name := os.Getenv("TABLE_NAME"); name != "" {
+		return name
+	}
+	return "lang-tracker"
+}
+
 func main() {
-	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("No .env file found")
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
+	if err := godotenv.Load(); err != nil {
+		slog.Warn("no .env file found, relying on environment variables")
 	}
 
-	db.Init()
+	ctx := context.Background()
+	client, err := db.New(ctx)
+	if err != nil {
+		log.Fatalf("failed to init DynamoDB client: %v", err)
+	}
+
+	table := tableName()
+	svc := &handler.Services{
+		Log:   &service.LogService{DB: client, TableName: table},
+		Stats: &service.StatsService{DB: client, TableName: table},
+	}
 
 	http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "only POST allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		// Limit request body to 1 MB to prevent abuse
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 		var req models.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		// Wrap into an API Gateway-like request
 		apiReq := handler.ToAPIGatewayRequest(req)
-		resp, _ := handler.Handler(r.Context(), apiReq)
+		resp, err := svc.Handler(r.Context(), apiReq)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "handler returned unexpected error", "err", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write([]byte(resp.Body))
 	})
 
-	port := getPort()
-	fmt.Printf("🚀 Local server running at http://localhost:%s/api\n", port)
-	_ = http.ListenAndServe(":"+port, nil)
-}
-
-func getPort() string {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	return port
+
+	slog.Info("local server starting", "addr", "http://localhost:"+port+"/api")
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

@@ -3,60 +3,59 @@ package db
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-type Dynamo struct {
-	Logs []map[string]types.AttributeValue
-	mu   sync.Mutex
+// DynamoDBClient is the interface the service layer depends on.
+// The real *dynamodb.Client satisfies it; tests can inject a mock.
+type DynamoDBClient interface {
+	PutItem(ctx context.Context, in *dynamodb.PutItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	Query(ctx context.Context, in *dynamodb.QueryInput, opts ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
 
-func NewDynamo() *Dynamo {
-	return &Dynamo{
-		Logs: make([]map[string]types.AttributeValue, 0),
-	}
-}
-
-func CreateItem(ctx context.Context, tableName string, item map[string]types.AttributeValue) error {
-	// Log the stored item
-	fmt.Println("📥 PutItem called, stored item:")
-	for k, v := range item {
-		switch val := v.(type) {
-		case *types.AttributeValueMemberS:
-			fmt.Printf("  %s: %s\n", k, val.Value)
-		case *types.AttributeValueMemberN:
-			fmt.Printf("  %s: %s\n", k, val.Value)
-		default:
-			fmt.Printf("  %s: %+v\n", k, v)
-		}
-	}
-
-	_, err := Client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &tableName,
+// CreateItem writes a single item to the given table.
+func CreateItem(ctx context.Context, client DynamoDBClient, tableName string, item map[string]types.AttributeValue) error {
+	_, err := client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
 		Item:      item,
 	})
 	return err
 }
 
-func QueryByUserId(ctx context.Context, userID, tableName string) (*dynamodb.QueryOutput, error) {
+// QueryByUserId returns all items for a userId, following DynamoDB pagination.
+func QueryByUserId(ctx context.Context, client DynamoDBClient, userID, tableName string) ([]map[string]types.AttributeValue, error) {
+	var (
+		items            []map[string]types.AttributeValue
+		lastEvaluatedKey map[string]types.AttributeValue
+	)
 
-	fmt.Println("📤 Querying DynamoDB for userId:", userID)
+	for {
+		input := &dynamodb.QueryInput{
+			TableName:              aws.String(tableName),
+			KeyConditionExpression: aws.String("userId = :uid"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":uid": &types.AttributeValueMemberS{Value: userID},
+			},
+		}
+		if lastEvaluatedKey != nil {
+			input.ExclusiveStartKey = lastEvaluatedKey
+		}
 
-	out, err := Client.Query(ctx, &dynamodb.QueryInput{
-		TableName:              &tableName,
-		KeyConditionExpression: aws.String("userId = :uid"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":uid": &types.AttributeValueMemberS{Value: userID},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		out, err := client.Query(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		items = append(items, out.Items...)
+
+		if out.LastEvaluatedKey == nil {
+			break
+		}
+		lastEvaluatedKey = out.LastEvaluatedKey
 	}
 
-	fmt.Printf("  ✅ Retrieved %d items\n", len(out.Items))
-	return out, nil
+	return items, nil
 }

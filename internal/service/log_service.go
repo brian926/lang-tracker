@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"lang-tracker/internal/db"
 	"lang-tracker/internal/models"
 
@@ -9,13 +10,17 @@ import (
 	"github.com/google/uuid"
 )
 
-const TableName = "lang-tracker"
+// LogService handles writing activity log entries.
+type LogService struct {
+	DB        db.DynamoDBClient
+	TableName string
+}
 
-func LogActivity(ctx context.Context, req models.Request) error {
-	logID := uuid.New().String()
+// LogActivity writes a new log entry to DynamoDB.
+func (s *LogService) LogActivity(ctx context.Context, req models.Request) error {
 	item := models.LogItem{
 		UserID:       req.UserID,
-		LogID:        logID,
+		LogID:        uuid.New().String(),
 		Language:     req.Language,
 		ActivityType: req.ActivityType,
 		Minutes:      req.Minutes,
@@ -23,9 +28,7 @@ func LogActivity(ctx context.Context, req models.Request) error {
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal log item: %w", err)
 	}
-
-	err = db.CreateItem(ctx, TableName, av)
-	return err
+	return db.CreateItem(ctx, s.DB, s.TableName, av)
 }
