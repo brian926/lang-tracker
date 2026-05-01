@@ -176,15 +176,15 @@ go vet ./...
 Sample requests are in `test_calls.ps1` (PowerShell):
 ```powershell
 # Log an activity
-curl -X POST `
+curl.exe -X POST `
     -H "Content-Type: application/json" `
-    -d '{"userId":"1","language":"French","activityType":"Watching","action":"log","minutes":60,"date":"2026-04-10"}' `
+    -d '{"action":"log","userId":"user1","language":"French","activityType":"Watching","minutes":60,"date":"2026-05-01"}' `
     http://localhost:8080/api
 
 # Get stats
-curl -X POST `
+curl.exe -X POST `
     -H "Content-Type: application/json" `
-    -d '{"userId":"1","language":"French","action":"stats"}' `
+    -d '{"action":"stats","userId":"user1","language":"French"}' `
     http://localhost:8080/api
 ```
 
@@ -205,7 +205,8 @@ go test ./internal/handler/...
 
 Test coverage:
 - `internal/handler` — routing, validation, all actions, error handling, response headers
-- `internal/service` — stats aggregation, date parsing, language filtering, percentages, pagination, error propagation
+- `internal/service` — stats aggregation, date parsing, language filtering, percentages, error propagation
+- `internal/db` — pagination logic, CreateItem, error propagation
 
 ---
 

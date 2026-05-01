@@ -84,3 +84,9 @@ lambda.Start(svc.Handler)
 ## .gitignore notes
 
 `go.mod` and `go.sum` are listed in `.gitignore` — this is unusual. They **are** present in the repo but will show as untracked after changes. Restore or force-add them if needed: `git add -f go.mod go.sum`.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at `specs/001-lang-tracker-api/plan.md`.
+<!-- SPECKIT END -->

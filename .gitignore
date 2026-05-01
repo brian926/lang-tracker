@@ -6,10 +6,15 @@
 /*.dll
 /*.so
 /*.dylib
+*.test
 
 # Go modules
 /go.sum
 /go.mod
+
+# AI tooling
+/.specify/
+/.opencode/
 
 # IDE/editor files
 .vscode/
